@@ -1,0 +1,936 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>K-food</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=Prompt:wght@500;600;700&display=swap">
+<style>
+/* layout: sticky header with two switches (ผู้สั่ง/ร้านค้า, ปกติ/น้ำท่วม); desktop = shop list beside shop detail, phone = one pane at a time.
+   The mode switch re-themes the whole app: persimmon in normal mode, flood blue in emergency mode. */
+:root {
+  --font-head: 'Prompt', 'IBM Plex Sans Thai', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans Thai', 'Noto Sans Thai', system-ui, sans-serif;
+  --bg: #f6f4f1; --surface: #ffffff; --surface-2: #ece8e3;
+  --fg: #221c17; --muted: #645a52; --line: #ddd6ce;
+  --accent: #c9440a; --accent-fg: #ffffff; --accent-soft: #ffe8d6;
+  --flood: #0b6580; --flood-fg: #ffffff; --flood-soft: #d8eef5;
+  --ok: #1d6f3f; --ok-soft: #dbf0e2;
+  --bad: #a82a1f; --bad-soft: #fde2df;
+  --warn: #7d5300; --warn-soft: #fdf0c9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #181411; --surface: #221d19; --surface-2: #2c2621;
+    --fg: #f1ebe5; --muted: #b3a79c; --line: #3a332d;
+    --accent: #ff9a4a; --accent-fg: #1f0e02; --accent-soft: #3d2713;
+    --flood: #62c6e3; --flood-fg: #06242d; --flood-soft: #12313b;
+    --ok: #6fd49a; --ok-soft: #173526;
+    --bad: #ff9b92; --bad-soft: #40201d;
+    --warn: #f0c25a; --warn-soft: #3a2f10;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #181411; --surface: #221d19; --surface-2: #2c2621;
+  --fg: #f1ebe5; --muted: #b3a79c; --line: #3a332d;
+  --accent: #ff9a4a; --accent-fg: #1f0e02; --accent-soft: #3d2713;
+  --flood: #62c6e3; --flood-fg: #06242d; --flood-soft: #12313b;
+  --ok: #6fd49a; --ok-soft: #173526;
+  --bad: #ff9b92; --bad-soft: #40201d;
+  --warn: #f0c25a; --warn-soft: #3a2f10;
+  color-scheme: dark;
+}
+#app[data-mode="flood"] { --accent: var(--flood); --accent-fg: var(--flood-fg); --accent-soft: var(--flood-soft); }
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-block: 0 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 10; }
+h1, h2, h3, .logo { font-family: var(--font-head); text-wrap: balance; }
+h2 { font-size: 17px; margin: 0 0 12px; font-weight: 600; }
+button { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#app { max-width: 1120px; margin: 0 auto; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-block: 14px; background: var(--bg); }
+@media (min-width: 821px) { .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; } }
+.brand { display: flex; flex-direction: column; min-width: 0; }
+.logo { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.logo { color: var(--accent); }
+.logo i { font-style: normal; color: var(--fg); }
+.tag { font-size: 12.5px; color: var(--muted); }
+.ctl { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font-size: 13.5px; font-weight: 500; padding: 6px 14px; min-height: 36px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); }
+
+/* flood banner */
+.flood { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: var(--radius, 14px); padding: 14px; margin-bottom: 16px; display: grid; gap: 10px; }
+.fl-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+.fl-head strong { font-family: var(--font-head); font-size: 16px; color: var(--accent); }
+.pk { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 620px) { .pk { grid-template-columns: minmax(0, 1fr); } }
+.pkchip { text-align: left; background: var(--surface); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px; cursor: pointer; min-width: 0; }
+.pkchip b { font-size: 14px; }
+.pkchip span { font-size: 12.5px; font-weight: 600; }
+.pkchip small { font-size: 12px; color: var(--muted); }
+.pkchip.on span { color: var(--ok); }
+.pkchip.off span { color: var(--bad); }
+.pkchip.off { opacity: .85; }
+.fl-note { margin: 0; font-size: 13px; color: var(--muted); }
+
+/* layout */
+.main { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.list { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.rows { display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 820px) {
+  .main { grid-template-columns: minmax(0, 1fr); }
+  .main[data-view="shop"] .list { display: none; }
+  .main[data-view="list"] .detail { display: none; }
+}
+@media (min-width: 821px) { .back { display: none !important; } }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 14px; font-size: 13.5px; min-height: 34px; cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+.row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left; color: inherit; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; }
+.row[aria-current="true"] { border-color: var(--accent); }
+.av { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-head); font-weight: 600; font-size: 19px; color: #fff; background: hsl(var(--h) 42% 34%); flex: none; }
+.rt { display: flex; flex-direction: column; min-width: 0; }
+.rt b { font-weight: 600; overflow-wrap: anywhere; }
+.meta { font-size: 12.5px; color: var(--muted); }
+.blurb { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.detail .card { padding: 0; overflow: hidden; }
+.dh { padding: 14px 16px; display: grid; gap: 10px; border-bottom: 1px solid var(--line); }
+.back { justify-self: start; border: 0; background: transparent; color: var(--muted); font-size: 14px; padding: 4px 0; cursor: pointer; min-height: 32px; }
+.dtitle { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.dtitle h1 { font-size: 19px; margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.terms { font-size: 13.5px; color: var(--muted); margin: 0; }
+.tabs { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: transparent; color: var(--muted); font-size: 14.5px; font-weight: 500; padding: 8px 14px; min-height: 40px; border-bottom: 2px solid transparent; cursor: pointer; }
+.tabs button[aria-current="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.body { padding: 16px; display: grid; gap: 12px; }
+.notice { margin: 0; font-size: 13.5px; background: var(--warn-soft); color: var(--warn); border-radius: 10px; padding: 10px 12px; }
+
+.menu { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.mi { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.mi:last-child { border-bottom: 0; }
+.mi .mn { min-width: 0; display: flex; flex-direction: column; }
+.mi b { font-weight: 500; overflow-wrap: anywhere; }
+.price { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.add { border: 1px solid var(--accent); color: var(--accent); background: transparent; border-radius: 999px; padding: 5px 16px; font-weight: 600; min-height: 36px; cursor: pointer; }
+.stp { display: inline-flex; align-items: center; gap: 4px; }
+.stp button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); color: var(--fg); font-size: 18px; cursor: pointer; line-height: 1; }
+.stp span { min-width: 24px; text-align: center; font-variant-numeric: tabular-nums; font-weight: 600; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+
+.cartbar { position: sticky; bottom: 12px; margin: 0 16px 16px; display: grid; gap: 8px; background: var(--fg); color: var(--bg); border-radius: 14px; padding: 12px 14px; }
+.cb-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; }
+.cb-top span { font-variant-numeric: tabular-nums; }
+.track { height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--bg) 25%, transparent); overflow: hidden; }
+.track i { display: block; height: 100%; background: var(--accent); }
+.cb-hint { font-size: 12.5px; opacity: .85; }
+
+.btn { border: 0; background: var(--accent); color: var(--accent-fg); font-weight: 600; border-radius: 10px; padding: 10px 18px; min-height: 42px; cursor: pointer; }
+.btn.ghost { background: var(--surface-2); color: var(--fg); }
+.btn.sm { min-height: 36px; padding: 6px 14px; font-size: 13.5px; }
+
+/* chat */
+.thread { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; padding: 4px; }
+.b { max-width: 84%; padding: 8px 13px; border-radius: 16px; overflow-wrap: anywhere; }
+.b.mine { align-self: flex-end; background: var(--accent); color: var(--accent-fg); border-bottom-right-radius: 4px; }
+.b.other { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.quick button { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 999px; padding: 5px 12px; font-size: 13px; min-height: 34px; cursor: pointer; }
+.send { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.in { font: inherit; font-size: 16px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; min-height: 42px; width: 100%; min-width: 0; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 0; }
+
+/* checkout */
+.opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; cursor: pointer; }
+.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.opt span { display: flex; flex-direction: column; min-width: 0; }
+.opt small { color: var(--muted); font-size: 12.5px; }
+.opt.dis { opacity: .5; cursor: not-allowed; }
+.opt input { margin-top: 5px; accent-color: var(--accent); }
+.grp { display: grid; gap: 8px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.grp legend { font-weight: 600; font-size: 14px; padding: 0; margin-bottom: 6px; }
+.lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14.5px; }
+.lines li, .sum div { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.sum { display: grid; gap: 4px; border-top: 1px dashed var(--line); padding-top: 10px; }
+.sum .tot { font-weight: 700; font-size: 17px; }
+
+/* orders */
+.orders { display: grid; gap: 8px; }
+.paybox { display: grid; gap: 8px; border: 1px dashed var(--line); border-radius: 10px; padding: 12px; }
+.paybox p { margin: 0; }
+.ord .stat, .od .stat { margin: 8px 0 0; font-size: 14px; color: var(--fg); }
+.ord .stat b, .od .stat b { color: var(--accent); }
+.ord { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 4px; }
+.ord-h { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; flex-wrap: wrap; }
+.ord p { margin: 0; font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+.code { font-family: var(--font-head); font-weight: 600; letter-spacing: .12em; color: var(--accent); }
+.steps { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.steps li { font-size: 11.5px; color: var(--muted); line-height: 1.3; }
+.steps li::before { content: ""; display: block; height: 4px; border-radius: 2px; background: var(--line); margin-bottom: 5px; }
+.steps li.done::before, .steps li.now::before { background: var(--accent); }
+.steps li.now { color: var(--fg); font-weight: 600; }
+.sect-title { font-family: var(--font-head); font-weight: 600; font-size: 15px; margin: 0 0 8px; }
+
+/* vendor */
+.vnote { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+.vgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 820px) { .vgrid { grid-template-columns: minmax(0, 1fr); } }
+.field { display: grid; gap: 6px; margin-bottom: 12px; }
+.lbl { font-size: 13.5px; font-weight: 600; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 460px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.vmenu { list-style: none; margin: 0 0 12px; padding: 0; }
+.vmenu li { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.vmenu li span { min-width: 0; overflow-wrap: anywhere; }
+.addrow { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; margin-bottom: 12px; }
+@media (max-width: 520px) { .addrow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .addrow .btn { grid-column: 1 / -1; } }
+.empty { color: var(--muted); font-size: 14px; margin: 0; padding: 8px 0; }
+
+.thumb { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; flex: none; display: block; }
+.thumb.sm { width: 44px; height: 44px; border-radius: 10px; }
+.cover { height: 140px; display: grid; place-items: center; background: hsl(var(--h) 65% 90%); overflow: hidden; }
+.cover svg { height: 100%; width: auto; max-width: 100%; }
+.nav { display: flex; gap: 8px; margin: 0 0 16px; }
+.nav button { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); font-weight: 600; font-size: 15px; padding: 10px 14px; min-height: 46px; border-radius: 12px; cursor: pointer; }
+.nav button[aria-current="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.badge { min-width: 22px; padding: 0 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12.5px; line-height: 22px; text-align: center; }
+.osec { max-width: 760px; display: grid; gap: 12px; }
+.olist { display: grid; gap: 10px; }
+.ocard { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.oh { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; align-items: center; width: 100%; text-align: left; background: transparent; border: 0; color: inherit; padding: 12px; cursor: pointer; }
+.oh .thumb { width: 56px; height: 56px; }
+.oh .rt .chip { align-self: flex-start; margin-top: 4px; }
+.chev { color: var(--muted); font-size: 12px; }
+.od { padding: 12px 14px 14px; display: grid; gap: 10px; border-top: 1px solid var(--line); }
+.od p { margin: 0; }
+.oitem { display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.fl-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.fl-body.nomap { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 820px) { .fl-body { grid-template-columns: minmax(0, 1fr); } }
+.pdet { display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.pdet p { margin: 0; font-size: 13.5px; }
+.pd-h { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pact { display: flex; flex-wrap: wrap; gap: 8px; }
+.pkchip[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.map { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--line); }
+.map text { font-family: var(--font-body); fill: var(--muted); font-size: 12px; }
+.map .land { fill: var(--surface-2); }
+.map .campus { fill: var(--surface); stroke: var(--muted); stroke-dasharray: 6 5; }
+.map .bld { fill: var(--line); }
+.map .road { fill: var(--surface); stroke: var(--line); }
+.map .water { fill: var(--flood); fill-opacity: .4; stroke: var(--flood); stroke-dasharray: 3 3; }
+.map .shopb { fill: var(--accent-soft); stroke: var(--accent); }
+.map .route { fill: none; stroke-width: 4; stroke-dasharray: 8 6; stroke-linecap: round; stroke-linejoin: round; }
+.map .route.ok { stroke: var(--accent); }
+.map .route.bad { stroke: var(--bad); }
+.map .you circle { fill: var(--fg); }
+.map .you text { fill: var(--fg); font-weight: 600; }
+.map .mk { cursor: pointer; }
+.map .mk .ring { stroke: var(--surface); stroke-width: 2; }
+.map .mk.on .ring { fill: var(--accent); }
+.map .mk.off .ring { fill: var(--bad); }
+.map .mk.sel .ring { stroke: var(--fg); stroke-width: 3; }
+.map .mk text { font-weight: 700; font-size: 15px; text-anchor: middle; dominant-baseline: central; }
+.map .mk.on text { fill: var(--accent-fg); }
+.map .mk.off text { fill: var(--bg); }
+.legend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.lg { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+.lg.on { background: var(--accent); }
+.lg.off { background: var(--bad); }
+.lg.wt { border-radius: 3px; background: var(--flood); opacity: .45; }
+.lg.rt { border-radius: 0; height: 0; width: 18px; border-top: 3px dashed var(--accent); }
+.vform { display: grid; gap: 4px; }
+.vform .hint { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.foot { margin-top: 28px; font-size: 12.5px; color: var(--muted); }
+#toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); text-align: center; }
+@media (prefers-reduced-motion: no-preference) { .row, .btn, .seg button { transition: background-color .15s, border-color .15s; } }
+
+.dinfo { display: grid; gap: 2px; background: var(--surface-2); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; color: var(--muted); }
+.dinfo b { color: var(--fg); font-size: 13.5px; }
+
+.vtabs { margin-bottom: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+@media (max-width: 620px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 2px; }
+.kpi b { font-family: var(--font-head); font-size: 22px; color: var(--accent); }
+.kpi span { font-size: 12.5px; color: var(--muted); }
+</style>
+
+<div id="app"></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+'use strict';
+var $app = document.getElementById('app');
+var baht = function (n) { return '฿' + Number(n).toLocaleString('th-TH'); };
+var esc = function (s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+
+/* ---------- ข้อมูลตัวอย่าง ---------- */
+var uid = 0;
+var shops = [
+  { id: 's1', name: 'ป้าแดง ข้าวแกง', av: 'ป', hue: 18, cat: 'ข้าวแกง', dist: 250, fee: 10, free: 100, open: true, flood: 'yes', blurb: 'ข้าวราดแกง กะเพรา น้ำพริกผักทอด',
+    menu: [['ข้าวราดแกง 2 อย่าง', 50, 'rice'], ['แกงเขียวหวานไก่ + ข้าว', 60, 'rice:#7fae3a'], ['กะเพราหมูสับไข่ดาว', 55, 'egg'], ['น้ำพริกกะปิ ผักทอด', 60, 'salad:#e7d8a8'], ['น้ำเปล่า', 10, 'bottle']] },
+  { id: 's2', name: 'ก๋วยเตี๋ยวเรือ ลุงชัย', av: 'ล', hue: 200, cat: 'ก๋วยเตี๋ยว', dist: 400, fee: 15, free: 0, open: true, flood: 'ask', blurb: 'ก๋วยเตี๋ยวเรือหมู เนื้อ ชามเล็ก',
+    menu: [['ก๋วยเตี๋ยวเรือหมู (ชุด 5 ชาม)', 75, 'noodle'], ['ก๋วยเตี๋ยวเรือเนื้อ (ชุด 5 ชาม)', 90, 'noodle:#4a2412'], ['หมูกรอบ', 30, 'grill:#c98a3a'], ['ชานมเย็น', 25, 'cup:#d9b48a']] },
+  { id: 's3', name: 'ส้มตำครกใหญ่', av: 'ส', hue: 96, cat: 'ส้มตำ ไก่ย่าง', dist: 600, fee: 20, free: 150, open: true, flood: 'no', blurb: 'ตำไทย ตำปูปลาร้า ไก่ย่าง คอหมูย่าง',
+    menu: [['ตำไทย', 50, 'salad'], ['ตำปูปลาร้า', 55, 'salad:#b5835a'], ['ไก่ย่างครึ่งตัว', 90, 'grill'], ['คอหมูย่าง', 70, 'grill:#8a4a2a'], ['ข้าวเหนียว', 10, 'bowl']] },
+  { id: 's4', name: 'Sip & Chill ชานมไข่มุก', av: 'S', hue: 330, cat: 'เครื่องดื่ม', dist: 150, fee: 10, free: 80, open: true, flood: 'yes', blurb: 'ชาไทย ชาเขียว โกโก้ กาแฟเย็น',
+    menu: [['ชาไทยไข่มุก', 35, 'cup:#e08a3c'], ['ชาเขียวนมสด', 40, 'cup:#a8cf7a'], ['โกโก้เย็น', 40, 'cup:#6b4130'], ['กาแฟเย็น', 35, 'cup:#8a5a3c'], ['มะม่วงปั่น', 45, 'cup:#f4b73a']] },
+  { id: 's5', name: 'ข้าวมันไก่ เฮียหมง', av: 'ห', hue: 42, cat: 'ข้าวมันไก่', dist: 320, fee: 10, free: 120, open: false, flood: 'ask', blurb: 'ปิดอยู่ เปิดอีกครั้ง 16:00',
+    menu: [['ข้าวมันไก่ต้ม', 45, 'chicken'], ['ข้าวมันไก่ทอด', 50, 'chicken:#d4923a'], ['ข้าวมันไก่ผสม', 55, 'chicken'], ['ซุปใส', 15, 'soup:#e9d9a8']] },
+  { id: 's6', name: 'ครัวคุณนิด อาหารตามสั่ง', av: 'น', hue: 270, cat: 'อาหารตามสั่ง', dist: 700, fee: 25, free: 200, open: true, flood: 'yes', blurb: 'ผัดกะเพรา ข้าวผัด ผัดซีอิ๊ว',
+    menu: [['ผัดกะเพราไก่ไข่ดาว', 55, 'egg'], ['ข้าวผัดกุ้ง', 65, 'fried'], ['ผัดซีอิ๊วหมู', 55, 'fried:#5a3a22'], ['ต้มยำกุ้ง (ถ้วย)', 120, 'soup']] }
+];
+shops.forEach(function (s) { s.menu = s.menu.map(function (m) { return { id: s.id + 'm' + (uid++), name: m[0], price: m[1], kind: m[2] }; }); });
+
+var pickups = [
+  { id: 'A', open: true, where: 'ตึกเรียนรวม ชั้น 1 ฝั่งประตูหลัก (ตัวอย่าง)', note: 'อาคารที่กำหนด · เส้นทางเข้าถึงได้รับการยืนยัน', walkOk: 'ประมาณ 3 นาที เส้นทางปลอดภัย', walkNo: 'เส้นทางถูกปิดชั่วคราว' },
+  { id: 'B', open: true, where: 'ลานจอดรถด้านทิศตะวันออก (ตัวอย่าง)', note: 'จุดรับรวม · มีร้านค้าส่งอาหารมาที่นี่', walkOk: 'ประมาณ 4 นาที เส้นทางปลอดภัย', walkNo: 'เส้นทางถูกปิดชั่วคราว' },
+  { id: 'C', open: false, where: 'ฝั่งตรงข้ามถนนสายหลัก (ตัวอย่าง)', note: 'เส้นทางเข้าถึงไม่ปลอดภัย', walkOk: 'ประมาณ 8 นาที หลังเจ้าหน้าที่ยืนยันเส้นทางแล้ว', walkNo: 'ต้องข้ามถนนที่น้ำท่วม ไม่แนะนำให้เดิน' }
+];
+
+var S = {
+  role: 'customer', vs: 's1', vtab: 'shop', ap: { name: '', cat: '', owner: '', phone: '', dist: '', tr: 'walk', staff: '1', note: '' }, apps: [
+    { id: 1, name: 'ข้าวต้มป้าอร', cat: 'ข้าวต้ม โจ๊ก', owner: 'อร สุขใจ', phone: '0812345678', dist: 300, tr: 'walk', staff: 1, note: 'ขายช่วงเช้า 6-10 โมง (ตัวอย่าง)', status: 'pending', mine: false },
+    { id: 2, name: 'ไก่ทอดหน้าตึก', cat: 'ของทอด', owner: 'ต้น วงศ์ดี', phone: '08123', dist: 650, tr: 'walk', staff: 1, note: '', status: 'pending', mine: false },
+    { id: 3, name: 'ป้าแดง ข้าวแกง', cat: 'ข้าวแกง', owner: 'แดง ใจดี', phone: '0899999999', dist: 250, tr: 'walk', staff: 1, note: '', status: 'rejected', reason: 'ชื่อร้านซ้ำกับร้านที่มีอยู่แล้ว', mine: false }
+  ], sec: 'shops', mode: 'normal', view: 'list', shopId: 's1', tab: 'menu', filter: 'all',
+  cart: {}, chats: {}, confirmed: {}, seq: 1002, sel: 'A', showMap: true, openOrder: 1000,
+  co: { method: null, addr: '', point: 'A', pay: 'cash', slip: '', zone: 'z3' },
+  draft: '', vdraft: '', nname: '', nprice: '', nkind: 'rice', nimg: '', nimgName: '',
+  orders: [
+    { id: 1001, shopId: 's1', mine: false, cust: 'มายด์ (ตัวอย่าง)', items: [{ name: 'ข้าวราดแกง 2 อย่าง', qty: 2, price: 50, kind: 'rice' }, { name: 'น้ำเปล่า', qty: 2, price: 10, kind: 'bottle' }], sub: 120, fee: 0, total: 120, method: 'delivery', addr: 'หอพักสุขสบาย ห้อง 305', point: null, code: null, pay: 'transfer', slip: 'slip-ตัวอย่าง.jpg', paid: true, status: 1 },
+    { id: 1000, shopId: 's4', mine: true, demo: true, cust: 'ผู้สั่ง', items: [{ name: 'ชาไทยไข่มุก', qty: 2, price: 35, kind: 'cup:#e08a3c' }], sub: 70, fee: 10, total: 80, method: 'delivery', addr: 'ตึกเรียนรวม ชั้น 2', point: null, code: null, pay: 'cash', slip: '', paid: false, status: 2 }
+  ]
+};
+
+/* ---------- ความสามารถในการส่งของร้าน (ส่งเอง: เดิน / มอไซค์ / รถ) + รอบส่ง ---------- */
+var TRN = { walk: ['เดินส่ง', 400], bike: ['มอเตอร์ไซค์', 1500], car: ['รถยนต์', 2500] };   /* [ชื่อ, ระยะแนะนำสูงสุด ม.] */
+var SPEED = { walk: 75, bike: 250, car: 300 };                                              /* เมตร/นาที */
+var PREP = 5;                                                                               /* ปิดรับรอบก่อนออก (นาที) */
+var ZN = [['z1', 'ประตูมหาวิทยาลัย', 0], ['z2', 'ตึกเรียนรวม', 100], ['z3', 'หอพักสุขสบาย', 150], ['z4', 'ตึกวิศวกรรมศาสตร์', 300], ['z5', 'หอพักนอก ซอย 5', 800], ['z6', 'ฝั่งตรงข้ามถนนสายหลัก', 1400]];
+var CFG = { s1: ['walk', 1, 400, 30, 4], s2: ['bike', 1, 1500, 15, 5], s3: ['bike', 2, 1500, 15, 6], s4: ['walk', 1, 400, 15, 3], s5: ['bike', 1, 1500, 15, 4], s6: ['car', 2, 2500, 20, 6] };
+shops.forEach(function (s) { var c = CFG[s.id]; s.tr = c[0]; s.staff = c[1]; s.range = c[2]; s.rnd = c[3]; s.cap = c[4]; s.away = 0; });
+function hm(t) { var d = new Date(t); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
+function oneWay(s, d) { return Math.max(1, Math.ceil(d / SPEED[s.tr])); }
+function tripMin(s, d) { return 2 * oneWay(s, d) + 3; }
+function zname(id) { return ZN.filter(function (z) { return z[0] === id; })[0][1]; }
+function deliv(s, zid) {
+  var d = s.dist + ZN.filter(function (z) { return z[0] === zid; })[0][2];
+  if (d > s.range) return { ok: false, d: d, why: 'ไกลเกินที่ร้านส่งไหว (ร้านส่งได้ไม่เกิน ' + s.range + ' ม. ระยะนี้ประมาณ ' + d + ' ม.) รับเองที่ร้านแทนได้' };
+  return { ok: true, d: d, one: oneWay(s, d), trip: tripMin(s, d) };
+}
+function rcount(s, k) { return S.orders.filter(function (o) { return o.shopId === s.id && o.method === 'delivery' && o.rk === k; }).length; }
+function nextRound(s) {
+  var iv = s.rnd * 60000, from = Math.max(Date.now() + PREP * 60000, s.staff < 2 ? s.away : 0);
+  var t = Math.ceil(from / iv) * iv, n = 0;
+  while (rcount(s, t) >= s.cap && n < 48) { t += iv; n++; }
+  return { t: t, left: s.cap - rcount(s, t) };
+}
+S.orders.forEach(function (o) { if (o.method !== 'delivery') return; var s = shop(o.shopId); o.dist = s.dist + (o.id === 1001 ? 150 : 100); o.one = oneWay(s, o.dist); o.rk = nextRound(s).t; });
+
+/* ---------- ตัวช่วย ---------- */
+function shop(id) { return shops.filter(function (s) { return s.id === id; })[0]; }
+function closedAll() { return S.mode === 'flood' && !pickups.some(function (p) { return p.open; }); }
+function canOrder(s) { return s.open && !s.sus && !closedAll(); }
+function thread(id) {
+  if (!S.chats[id]) { S.chats[id] = [{ who: 'shop', text: 'สวัสดีค่ะ ร้าน' + shop(id).name + ' ยินดีต้อนรับ ทักถามเมนูหรือการจัดส่งได้เลย' }]; }
+  return S.chats[id];
+}
+function lines(s) {
+  var c = S.cart[s.id] || {};
+  return s.menu.filter(function (m) { return c[m.id] > 0; }).map(function (m) { return { id: m.id, name: m.name, price: m.price, qty: c[m.id], kind: m.kind, img: m.img }; });
+}
+function subtotal(s) { return lines(s).reduce(function (a, l) { return a + l.qty * l.price; }, 0); }
+function count(s) { return lines(s).reduce(function (a, l) { return a + l.qty; }, 0); }
+function feeFor(s, sub, method) { if (method !== 'delivery') return 0; if (s.free > 0 && sub >= s.free) return 0; return s.fee; }
+function feeText(n) { return n === 0 ? 'ส่งฟรี' : baht(n); }
+function termsText(s) {
+  if (s.fee === 0) return 'ส่งฟรีทุกออเดอร์';
+  return s.free > 0 ? 'ค่าส่ง ' + baht(s.fee) + ' · ส่งฟรีเมื่อสั่งครบ ' + baht(s.free) : 'ค่าส่ง ' + baht(s.fee) + ' · ไม่มีส่งฟรี';
+}
+function canDeliverFlood(s) { return s.flood === 'yes' || !!S.confirmed[s.id]; }
+function methods(s) {
+  if (S.mode !== 'flood') return ['delivery', 'shop'];
+  return canDeliverFlood(s) ? ['delivery', 'point'] : ['point'];
+}
+function effMethod(s) { var m = methods(s).filter(function (k) { return k !== 'delivery' || deliv(s, S.co.zone).ok; }); return m.indexOf(S.co.method) >= 0 ? S.co.method : m[0]; }
+function effPoint() {
+  var open = pickups.filter(function (p) { return p.open; });
+  var hit = open.filter(function (p) { return p.id === S.co.point; })[0] || open[0];
+  return hit ? hit.id : null;
+}
+function shopStatus(s) {
+  if (!s.open) return { cls: 'bad', text: 'ปิดอยู่' };
+  if (s.away > Date.now() && s.staff < 2) return { cls: 'warn', text: 'ออกส่ง กลับ ' + hm(s.away) };
+  if (S.mode === 'flood') {
+    if (canDeliverFlood(s)) return { cls: 'ok', text: 'ส่งได้' };
+    if (s.flood === 'no') return { cls: 'bad', text: 'ส่งไม่ได้' };
+    return { cls: 'warn', text: 'ถามร้านก่อน' };
+  }
+  return { cls: 'ok', text: 'เปิดอยู่' };
+}
+function stepLabels(method) {
+  if (method === 'delivery') return ['รับออเดอร์', 'การเตรียมอาหาร', 'เสร็จแล้ว เตรียมส่ง', 'ส่งแล้ว'];
+  if (method === 'shop') return ['รับออเดอร์', 'การเตรียมอาหาร', 'เสร็จแล้ว พร้อมให้รับ', 'รับแล้ว'];
+  return ['รับออเดอร์', 'การเตรียมอาหาร', 'เสร็จแล้ว เตรียมนำไปจุดรับ', 'ส่งถึงจุดรับแล้ว'];
+}
+function payText(o) {
+  if (o.pay === 'cash') return 'เงินสด · จ่ายตอนรับอาหาร';
+  return 'โอนเงิน · ' + (o.paid ? 'ร้านยืนยันยอดแล้ว' : 'รอร้านตรวจสลิป');
+}
+var tt;
+function toast(m) {
+  var t = document.getElementById('toast');
+  t.textContent = m; t.hidden = false;
+  clearTimeout(tt); tt = setTimeout(function () { t.hidden = true; }, 2800);
+}
+
+/* ---------- ส่วนแสดงผล ---------- */
+function seg(act, opts, cur, label) {
+  return '<div class="seg" role="group" aria-label="' + label + '">' + opts.map(function (o) {
+    return '<button type="button" data-act="' + act + '" data-v="' + o[0] + '" aria-pressed="' + (cur === o[0]) + '">' + o[1] + '</button>';
+  }).join('') + '</div>';
+}
+function header() {
+  return '<header class="top"><div class="brand"><span class="logo">K<i>-</i>FOOD</span><span class="tag">สั่งอาหารจากร้านใกล้มหาวิทยาลัย</span></div><div class="ctl">' +
+    seg('role', [['customer', 'ผู้สั่ง'], ['vendor', 'ร้านค้า'], ['admin', 'แอดมิน']], S.role, 'มุมมอง') +
+    seg('mode', [['normal', 'ปกติ'], ['flood', 'น้ำท่วม']], S.mode, 'โหมด') + '</div></header>';
+}
+function art(kind) {
+  var k = String(kind || 'bowl').split(':'), t = k[0], c = k[1];
+  var sh = '<ellipse cx="60" cy="88" rx="46" ry="7" fill="#000" opacity=".1"/>';
+  var plate = sh + '<ellipse cx="60" cy="78" rx="46" ry="18" fill="#fbf7f0"/><ellipse cx="60" cy="76" rx="37" ry="13" fill="none" stroke="#e4dacb" stroke-width="2"/>';
+  if (t === 'rice') return plate + '<path d="M28 74 Q36 42 62 48 Q78 52 80 74Z" fill="#fffdf6" stroke="#eee5d3"/><path d="M62 74 Q70 54 94 62 Q99 75 80 80 Q66 80 62 74Z" fill="' + (c || '#e0861f') + '"/><circle cx="84" cy="67" r="3" fill="#3f8f3a"/><circle cx="74" cy="72" r="2.5" fill="#3f8f3a"/><circle cx="89" cy="73" r="2.5" fill="#c9302c"/>';
+  if (t === 'egg') return plate + '<ellipse cx="42" cy="68" rx="20" ry="12" fill="#fffdf6" stroke="#eee5d3"/><ellipse cx="74" cy="70" rx="22" ry="12" fill="#7a4a2a"/><ellipse cx="68" cy="66" rx="6" ry="3" fill="#2f7d32" transform="rotate(-20 68 66)"/><ellipse cx="82" cy="70" rx="5" ry="2.6" fill="#2f7d32" transform="rotate(25 82 70)"/><circle cx="76" cy="73" r="2.4" fill="#c9302c"/><circle cx="58" cy="54" r="14" fill="#fffef9" stroke="#efe9dc"/><circle cx="58" cy="54" r="6" fill="#f6b400"/>';
+  if (t === 'noodle') return sh + '<path d="M20 62 H100 Q98 94 60 97 Q22 94 20 62Z" fill="#c8553a"/><ellipse cx="60" cy="62" rx="40" ry="11" fill="' + (c || '#7a3f1d') + '"/><path d="M34 62 Q46 54 58 62 T84 62" stroke="#f3dca0" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M38 67 Q50 60 62 67 T88 66" stroke="#f3dca0" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="74" cy="60" r="5" fill="#d7b48b"/><circle cx="46" cy="64" r="4" fill="#d7b48b"/><ellipse cx="62" cy="58" rx="6" ry="3" fill="#3f8f3a" transform="rotate(-15 62 58)"/><path d="M48 44 Q43 36 48 28 M66 44 Q61 36 66 28" stroke="#c9c2b8" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  if (t === 'salad') return plate + '<ellipse cx="60" cy="68" rx="30" ry="15" fill="' + (c || '#f6c27a') + '"/><path d="M40 66 L50 60 M52 70 L64 62 M68 72 L78 64 M46 74 L56 70 M62 58 L72 56" stroke="#e9954a" stroke-width="3" stroke-linecap="round"/><path d="M44 62 L52 68 M70 66 L76 72" stroke="#4a9a43" stroke-width="3" stroke-linecap="round"/><circle cx="48" cy="64" r="5" fill="#d2402e"/><circle cx="74" cy="70" r="5" fill="#d2402e"/><circle cx="60" cy="72" r="2" fill="#8a5a2b"/><circle cx="66" cy="62" r="2" fill="#8a5a2b"/><circle cx="54" cy="58" r="2" fill="#8a5a2b"/>';
+  if (t === 'grill') return plate + '<path d="M26 74 Q30 48 62 50 Q94 52 94 70 Q80 84 46 82 Q28 80 26 74Z" fill="' + (c || '#b8651f') + '"/><path d="M44 56 L52 76 M58 54 L66 78 M72 56 L80 76" stroke="#6d3510" stroke-width="3" stroke-linecap="round" opacity=".6"/><path d="M36 62 Q50 54 64 56" stroke="#f0b66a" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="99" cy="82" r="7" fill="#9acd32"/><circle cx="99" cy="82" r="3" fill="#d9ef9a"/>';
+  if (t === 'cup') return '<ellipse cx="60" cy="102" rx="26" ry="4" fill="#000" opacity=".1"/><path d="M38 36 H82 L76 98 Q60 104 44 98Z" fill="' + (c || '#e08a3c') + '"/><path d="M42 36 H78 L77 52 H41Z" fill="#fff" opacity=".35"/><rect x="34" y="30" width="52" height="8" rx="4" fill="#fff" stroke="#d8d2c8"/><path d="M66 30 L74 8" stroke="#d6453d" stroke-width="5" stroke-linecap="round"/><circle cx="50" cy="90" r="4" fill="#3a2a22"/><circle cx="58" cy="94" r="4" fill="#3a2a22"/><circle cx="67" cy="91" r="4" fill="#3a2a22"/><circle cx="54" cy="83" r="4" fill="#3a2a22"/><circle cx="63" cy="85" r="4" fill="#3a2a22"/><circle cx="71" cy="84" r="4" fill="#3a2a22"/>';
+  if (t === 'soup') return sh + '<path d="M20 60 H100 Q98 94 60 97 Q22 94 20 60Z" fill="#f3efe8" stroke="#ddd5c7"/><ellipse cx="60" cy="60" rx="40" ry="11" fill="' + (c || '#d8592b') + '"/><path d="M42 58 Q54 46 66 56 Q60 63 52 63Z" fill="#f29a76"/><path d="M62 60 Q72 50 82 58 Q76 65 68 65Z" fill="#f29a76"/><circle cx="50" cy="64" r="4" fill="#f1e2c3"/><path d="M36 60 L42 56 M80 62 L88 60" stroke="#3f8f3a" stroke-width="3" stroke-linecap="round"/><path d="M48 42 Q43 34 48 26 M66 42 Q61 34 66 26" stroke="#c9c2b8" stroke-width="3" fill="none" stroke-linecap="round"/>';
+  if (t === 'fried') return plate + '<path d="M26 76 Q34 42 62 44 Q92 46 96 76Z" fill="' + (c || '#f2cf6b') + '"/><circle cx="50" cy="62" r="2.2" fill="#4a9a43"/><circle cx="66" cy="56" r="2.2" fill="#4a9a43"/><circle cx="78" cy="66" r="2.2" fill="#4a9a43"/><circle cx="58" cy="70" r="2.2" fill="#ee8a2e"/><circle cx="72" cy="58" r="2.2" fill="#ee8a2e"/><path d="M40 66 Q48 58 54 66 Q48 70 40 66Z" fill="#f29a76"/><circle cx="102" cy="82" r="6" fill="#9acd32"/>';
+  if (t === 'chicken') return plate + '<ellipse cx="42" cy="68" rx="22" ry="13" fill="#fbf0cf" stroke="#efe2bd"/><g transform="rotate(-8 74 64)"><ellipse cx="62" cy="62" rx="14" ry="8" fill="#f6e3c4" stroke="#e3c99f"/><ellipse cx="76" cy="64" rx="14" ry="8" fill="#f6e3c4" stroke="#e3c99f"/><ellipse cx="90" cy="66" rx="12" ry="7" fill="#f6e3c4" stroke="#e3c99f"/><path d="M50 58 Q62 52 76 58 Q88 60 98 64" stroke="' + (c || '#e8b56a') + '" stroke-width="4" fill="none" stroke-linecap="round"/></g><circle cx="94" cy="84" r="6" fill="#8ac26f"/><circle cx="94" cy="84" r="3" fill="#c7e6b0"/>';
+  if (t === 'bottle') return '<ellipse cx="60" cy="102" rx="24" ry="4" fill="#000" opacity=".1"/><rect x="51" y="22" width="18" height="12" rx="3" fill="#2f7fbf"/><path d="M46 36 H74 L78 96 Q60 103 42 96Z" fill="#d6edf8" stroke="#9cc9e0" stroke-width="2"/><path d="M45 62 H75 L77 96 Q60 102 43 96Z" fill="#6bb6e0" opacity=".6"/><rect x="48" y="50" width="24" height="12" rx="2" fill="#fff" opacity=".8"/>';
+  return sh + '<path d="M30 62 H90 Q88 94 60 96 Q32 94 30 62Z" fill="#f3efe8" stroke="#ddd5c7"/><path d="M30 62 Q38 34 60 34 Q82 34 90 62Z" fill="#fffdf6" stroke="#eee5d3"/>';
+}
+function tile(kind, hue, img, size, cls) {
+  if (img) return '<img class="' + cls + '" src="' + img + '" alt="" width="' + size + '" height="' + size + '">';
+  return '<svg class="' + cls + '" viewBox="0 0 120 120" width="' + size + '" height="' + size + '" aria-hidden="true"><rect width="120" height="120" fill="hsl(' + hue + ' 65% 90%)"/>' + art(kind) + '</svg>';
+}
+function cover(s) {
+  var items = s.menu.slice(0, 5);
+  if (!items.length) return '<div class="cover" style="--h:' + s.hue + '"></div>';
+  return '<div class="cover" style="--h:' + s.hue + '"><svg viewBox="0 0 ' + (items.length * 120) + ' 120" preserveAspectRatio="xMidYMid meet" aria-hidden="true">' + items.map(function (m, i) {
+    return m.img ? '<image href="' + m.img + '" x="' + (i * 120) + '" y="0" width="120" height="120" preserveAspectRatio="xMidYMid slice"/>' : '<svg x="' + (i * 120) + '" y="0" width="120" height="120" viewBox="0 0 120 120">' + art(m.kind) + '</svg>';
+  }).join('') + '</svg></div>';
+}
+function walkText(p) { return p.open ? p.walkOk : p.walkNo; }
+function mapSvg(sel) {
+  var routes = {
+    A: 'M230 262 L160 262 L160 150 L110 150',
+    B: 'M230 262 L310 262 L310 140 L320 140',
+    C: 'M230 262 L310 262 L310 215 L480 215'
+  };
+  var pos = { A: [110, 150], B: [320, 140], C: [480, 215] };
+  var mk = pickups.map(function (p) {
+    var q = pos[p.id], on = p.id === sel.id;
+    return '<g id="mk-' + p.id + '" class="mk ' + (p.open ? 'on' : 'off') + (on ? ' sel' : '') + '" data-act="pick" data-id="' + p.id + '" role="button" tabindex="0" aria-label="จุดรับอาหาร ' + p.id + (p.open ? ' เปิดให้รับอาหาร' : ' ปิดชั่วคราว') + '"><circle class="ring" cx="' + q[0] + '" cy="' + q[1] + '" r="' + (on ? 21 : 17) + '"/><text x="' + q[0] + '" y="' + q[1] + '">' + p.id + '</text></g>';
+  }).join('');
+  var shopsb = [430, 452, 474, 496].map(function (x) { return '<rect class="shopb" x="' + x + '" y="100" width="18" height="14" rx="3"/>'; }).join('');
+  return '<svg class="map" viewBox="0 0 640 400" role="img" aria-label="แผนที่จำลองจุดรับอาหาร A B C ในช่วงน้ำท่วม">' +
+    '<rect class="land" width="640" height="400"/>' +
+    '<rect class="campus" x="30" y="30" width="310" height="250" rx="18"/>' +
+    '<rect class="bld" x="50" y="70" width="100" height="50" rx="6"/><rect class="bld" x="190" y="65" width="110" height="45" rx="6"/><rect class="bld" x="50" y="190" width="90" height="60" rx="6"/><rect class="bld" x="190" y="185" width="90" height="60" rx="6"/>' +
+    '<rect class="road" x="0" y="292" width="640" height="26"/><rect class="road" x="368" y="0" width="26" height="292"/><rect class="road" x="394" y="140" width="246" height="22"/>' +
+    '<rect class="water" x="0" y="286" width="150" height="38" rx="10"/><rect class="water" x="362" y="150" width="38" height="142" rx="10"/><rect class="water" x="420" y="286" width="130" height="38" rx="10"/><ellipse class="water" cx="480" cy="250" rx="50" ry="22"/>' +
+    shopsb +
+    '<path class="route ' + (sel.open ? 'ok' : 'bad') + '" d="' + routes[sel.id] + '"/>' +
+    '<g class="you"><circle cx="230" cy="262" r="7"/><text x="242" y="266">คุณอยู่ที่นี่ (ตัวอย่าง)</text></g>' +
+    mk +
+    '<text x="46" y="52">มหาวิทยาลัย (ตัวอย่าง)</text><text x="196" y="309">ถนนหน้ามหาวิทยาลัย</text><text transform="translate(386 90) rotate(-90)">ถนนสายหลัก</text><text x="430" y="94">ย่านร้านค้า (ตัวอย่าง)</text>' +
+    '</svg>';
+}
+function pointDetail(p) {
+  return '<div class="pd-h"><b>จุดรับอาหาร ' + p.id + '</b><span class="chip ' + (p.open ? 'ok' : 'bad') + '">' + (p.open ? 'เปิดให้รับอาหาร' : 'ปิดชั่วคราว') + '</span></div>' +
+    '<p>' + p.where + '</p><p>' + p.note + '</p><p><b>เดินจากจุดตัวอย่าง</b> ' + walkText(p) + '</p>' +
+    '<div class="pact">' + (S.role === 'customer' && p.open ? '<button type="button" class="btn sm" data-act="usepoint" data-id="' + p.id + '">รับอาหารที่จุดนี้</button>' : '') + '<button type="button" class="btn ghost sm" data-act="ptoggle" data-id="' + p.id + '">สลับสถานะ (สาธิต)</button></div>';
+}
+function banner() {
+  if (S.mode !== 'flood') return '';
+  var n = pickups.filter(function (p) { return p.open; }).length;
+  var sel = pickups.filter(function (p) { return p.id === S.sel; })[0] || pickups[0];
+  var chips = pickups.map(function (p) {
+    return '<button type="button" class="pkchip ' + (p.open ? 'on' : 'off') + '" data-act="pick" data-id="' + p.id + '" aria-pressed="' + (p.id === sel.id) + '"><b>จุดรับอาหาร ' + p.id + '</b><span>' + (p.open ? 'เปิดให้รับอาหาร' : 'ปิดชั่วคราว') + '</span></button>';
+  }).join('');
+  var legend = '<ul class="legend"><li><i class="lg on"></i>จุดรับที่เปิด</li><li><i class="lg off"></i>จุดรับที่ปิด</li><li><i class="lg wt"></i>น้ำท่วมขัง</li><li><i class="lg rt"></i>เส้นทางเดิน</li></ul><p class="hint">แผนที่จำลองเพื่อสาธิต ตำแหน่งไม่ตรงกับสถานที่จริง</p>';
+  return '<section class="flood" aria-label="สถานการณ์น้ำท่วม"><div class="fl-head"><div><strong>โหมดน้ำท่วม</strong> <span>จุดรับอาหารที่เปิดให้บริการ ' + n + ' จุด</span></div><button type="button" class="btn ghost sm" data-act="map">' + (S.showMap ? 'ซ่อนแผนที่' : 'แสดงแผนที่') + '</button></div>' +
+    '<div class="pk">' + chips + '</div>' +
+    '<div class="fl-body' + (S.showMap ? '' : ' nomap') + '">' + (S.showMap ? '<div class="fl-map">' + mapSvg(sel) + legend + '</div>' : '') + '<div class="pdet">' + pointDetail(sel) + '</div></div>' +
+    '<p class="fl-note">' + (n ? 'ร้านที่ส่งถึงที่ไม่ได้จะนำอาหารไปส่งที่จุดรับอาหารแทน แตะจุดบนแผนที่เพื่อดูรายละเอียด' : 'ไม่มีจุดรับอาหารที่ปลอดภัย ระบบจึงปิดการสั่งอาหารในพื้นที่นี้') + '</p></section>';
+}
+function lastMsg(s) {
+  var th = S.chats[s.id];
+  if (th && th.length > 1) { var l = th[th.length - 1]; return (l.who === 'cust' ? 'คุณ: ' : '') + l.text; }
+  return s.blurb;
+}
+function row(s) {
+  var st = shopStatus(s), m0 = s.menu[0];
+  return '<button type="button" class="row" data-act="open" data-id="' + s.id + '" aria-current="' + (s.id === S.shopId) + '">' + tile(m0 ? m0.kind : 'bowl', s.hue, m0 && m0.img, 64, 'thumb') + '<span class="rt"><b>' + esc(s.name) + '</b><span class="meta">' + esc(s.cat) + ' · ' + s.dist + ' ม. จากประตู · ' + TRN[s.tr][0] + '</span><span class="blurb">' + esc(lastMsg(s)) + '</span></span><span class="chip ' + st.cls + '">' + st.text + '</span></button>';
+}
+function passFilter(s) {
+  if (s.sus || !s.menu.length) return false;
+  if (S.filter === 'open') return s.open;
+  if (S.filter === 'free') return s.free > 0 || s.fee === 0;
+  return true;
+}
+function tracker(o) {
+  return '<p class="stat">สถานะตอนนี้ <b>' + stepLabels(o.method)[o.status] + '</b></p><ol class="steps">' + stepLabels(o.method).map(function (l, i) {
+    var cls = i < o.status ? 'done' : (i === o.status ? (o.status === 3 ? 'done' : 'now') : '');
+    return '<li class="' + cls + '">' + l + '</li>';
+  }).join('') + '</ol>';
+}
+function orderWhere(o) {
+  if (o.method === 'delivery') return 'ส่งที่ ' + esc(o.addr) + (o.rk ? ' · ร้านออกรอบ ' + hm(o.rk) + ' ถึงประมาณ ' + hm(o.rk + o.one * 60000) : '');
+  if (o.method === 'shop') return 'รับเองที่ร้าน';
+  return 'รับที่จุดรับอาหาร ' + o.point;
+}
+
+function orderCard(o) {
+  var s = shop(o.shopId), open = S.openOrder === o.id, lab = stepLabels(o.method), done = o.status >= 3;
+  var first = o.items[0] || { kind: 'bowl' };
+  var head = '<button type="button" class="oh" data-act="oopen" data-id="' + o.id + '" aria-expanded="' + open + '">' + tile(first.kind, s.hue, first.img, 56, 'thumb') +
+    '<span class="rt"><b>#' + o.id + ' · ' + esc(s.name) + '</b><span class="meta">' + o.items.length + ' รายการ · ' + baht(o.total) + (o.demo ? ' · ตัวอย่าง' : '') + '</span><span class="chip ' + (done ? 'ok' : 'warn') + '">' + lab[o.status] + '</span></span><span class="chev" aria-hidden="true">' + (open ? '▲' : '▼') + '</span></button>';
+  var det = '';
+  if (open) {
+    det = '<div class="od">' + o.items.map(function (i) {
+      return '<div class="oitem">' + tile(i.kind, s.hue, i.img, 44, 'thumb sm') + '<span>' + esc(i.name) + ' x' + i.qty + '</span><span class="price">' + baht(i.qty * i.price) + '</span></div>';
+    }).join('') + '<div class="sum"><div><span>ค่าอาหาร</span><span>' + baht(o.sub) + '</span></div><div><span>ค่าส่ง</span><span>' + (o.method === 'delivery' ? feeText(o.fee) : 'ไม่มีค่าส่ง') + '</span></div><div class="tot"><span>รวม</span><span>' + baht(o.total) + '</span></div></div>' +
+      '<p class="hint">' + orderWhere(o) + (o.code ? ' · รหัสรับอาหาร <span class="code">' + o.code + '</span>' : '') + '</p><p class="hint">' + payText(o) + '</p>' + tracker(o) +
+      '<div><button type="button" class="btn ghost sm" data-act="viewshop" data-id="' + s.id + '">ดูร้านนี้</button></div></div>';
+  }
+  return '<article class="ocard">' + head + det + '</article>';
+}
+function ordersSection(mine) {
+  if (!mine.length) return '<section class="osec" aria-label="ออเดอร์ที่สั่งแล้ว"><p class="empty">ยังไม่มีออเดอร์ เลือกร้านแล้วสั่งอาหารได้เลย</p><div><button type="button" class="btn" data-act="sec" data-v="shops">เลือกร้านค้า</button></div></section>';
+  return '<section class="osec" aria-label="ออเดอร์ที่สั่งแล้ว"><p class="hint">แตะออเดอร์เพื่อดูรายการและสถานะ สาธิต: ออเดอร์ที่สั่งใหม่จะเดินสถานะเองทุก 7 วินาที</p><div class="olist">' + mine.map(orderCard).join('') + '</div></section>';
+}
+function customer() {
+  var s = shop(S.shopId);
+  var mine = S.orders.filter(function (o) { return o.mine; });
+  var nav = '<nav class="nav" aria-label="ส่วนของผู้สั่ง"><button type="button" data-act="sec" data-v="shops" aria-current="' + (S.sec === 'shops') + '">เลือกร้านค้า</button><button type="button" data-act="sec" data-v="orders" aria-current="' + (S.sec === 'orders') + '">ออเดอร์ของฉัน<span class="badge">' + mine.length + '</span></button></nav>';
+  if (S.sec === 'orders') return nav + ordersSection(mine);
+  var f = [['all', 'ทั้งหมด'], ['open', 'เปิดอยู่'], ['free', 'มีส่งฟรี']];
+  var list = shops.filter(passFilter);
+  return nav + '<main class="main" data-view="' + S.view + '"><section class="list" aria-label="รายชื่อร้าน">' +
+    '<div class="filters" role="group" aria-label="กรองร้าน">' + f.map(function (x) { return '<button type="button" data-act="filter" data-v="' + x[0] + '" aria-pressed="' + (S.filter === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+    '<div class="rows">' + (list.length ? list.map(row).join('') : '<p class="empty">ไม่มีร้านที่ตรงกับตัวกรอง</p>') + '</div></section>' +
+    '<section class="detail">' + detail(s) + '</section></main>';
+}
+function stepper(s, m) {
+  var q = (S.cart[s.id] || {})[m.id] || 0;
+  var dis = canOrder(s) ? '' : ' disabled';
+  if (!q) return '<button type="button" class="add" data-act="inc" data-id="' + m.id + '"' + dis + '>เพิ่ม</button>';
+  return '<div class="stp"><button type="button" data-act="dec" data-id="' + m.id + '" aria-label="ลด ' + esc(m.name) + '"' + dis + '>−</button><span>' + q + '</span><button type="button" data-act="inc" data-id="' + m.id + '" aria-label="เพิ่ม ' + esc(m.name) + '"' + dis + '>+</button></div>';
+}
+function dinfo(s) {
+  if (!s.open) return '';
+  var nr = nextRound(s), away = s.away > Date.now() && s.staff < 2;
+  return '<div class="dinfo"><b>' + TRN[s.tr][0] + ' · ส่งไม่เกิน ' + s.range + ' ม. · ' + (s.staff >= 2 ? 'มีคนเฝ้าร้านตอนไปส่ง' : 'ร้านมีคนเดียว จึงส่งเป็นรอบ') + '</b><span>ออกส่งทุก ' + s.rnd + ' นาที · รอบถัดไป ' + hm(nr.t) + ' (เหลือ ' + nr.left + ' ที่)</span>' +
+    (away ? '<span>ตอนนี้ร้านออกไปส่ง กลับประมาณ ' + hm(s.away) + ' ออเดอร์ใหม่เข้ารอบถัดไป</span>' : '') + '<span>อยู่ไกลเกินระยะนี้ เลือกรับเองที่ร้านได้</span></div>';
+}
+function menuTab(s) {
+  var note = '';
+  if (!s.open) note = '<p class="notice">ร้านปิดอยู่ ดูเมนูหรือทักแชทไว้ก่อนได้</p>';
+  else if (closedAll()) note = '<p class="notice">ปิดรับออเดอร์ชั่วคราว เพราะตอนนี้ไม่มีจุดรับอาหารที่ปลอดภัย</p>';
+  else if (S.mode === 'flood' && !canDeliverFlood(s)) {
+    note = s.flood === 'no' ? '<p class="notice">ช่วงน้ำท่วมร้านนี้ส่งถึงที่ไม่ได้ สั่งแล้วรับที่จุดรับอาหารได้</p>' : '<p class="notice">ร้านนี้ยังไม่ยืนยันว่าส่งถึงที่ได้ไหม ถามในแชทก่อน หรือสั่งแล้วรับที่จุดรับอาหาร</p>';
+  }
+  return dinfo(s) + note + '<ul class="menu">' + s.menu.map(function (m) {
+    return '<li class="mi">' + tile(m.kind, s.hue, m.img, 64, 'thumb') + '<div class="mn"><b>' + esc(m.name) + '</b><span class="price">' + baht(m.price) + '</span></div>' + stepper(s, m) + '</li>';
+  }).join('') + '</ul>';
+}
+function bubbles(id, viewer) {
+  return thread(id).map(function (m) { return '<div class="b ' + (m.who === viewer ? 'mine' : 'other') + '">' + esc(m.text) + '</div>'; }).join('');
+}
+function chatTab(s) {
+  var q = S.mode === 'flood' ? ['ตอนนี้น้ำท่วม ส่งถึงหอได้ไหม', 'ส่งไปที่จุดรับอาหารได้ไหม', 'ขอไม่เผ็ดได้ไหม'] : ['มีเมนูแนะนำไหม', 'ส่งถึงหอพักได้ไหม', 'ขอไม่เผ็ดได้ไหม'];
+  return '<p class="hint">แชทตัวอย่าง ร้านตอบอัตโนมัติเพื่อสาธิต</p><div class="thread" aria-label="ข้อความ" role="log">' + bubbles(s.id, 'cust') + '</div>' +
+    '<div class="quick">' + q.map(function (t) { return '<button type="button" data-act="quick" data-text="' + esc(t) + '">' + esc(t) + '</button>'; }).join('') + '</div>' +
+    '<form class="send" data-form="chat"><input id="chat-in" class="in" data-bind="draft" value="' + esc(S.draft) + '" placeholder="พิมพ์ข้อความถึงร้าน" aria-label="ข้อความถึงร้าน" autocomplete="off"><button class="btn" type="submit">ส่ง</button></form>';
+}
+function payBox() {
+  var p = S.co.pay;
+  var cash = '<label class="opt"><input type="radio" id="pay-cash" name="pay" data-bind="pay" value="cash"' + (p === 'cash' ? ' checked' : '') + '><span><b>เงินสด</b><small>จ่ายกับร้านตอนรับอาหาร</small></span></label>';
+  var tr = '<label class="opt"><input type="radio" id="pay-transfer" name="pay" data-bind="pay" value="transfer"' + (p === 'transfer' ? ' checked' : '') + '><span><b>โอนเงิน</b><small>โอนเข้าบัญชีร้านแล้วแนบสลิป</small></span></label>';
+  var box = p === 'transfer' ? '<div class="paybox"><p><b>พร้อมเพย์ร้าน</b> 08x-xxx-5678 (ตัวอย่าง)</p><label class="lbl" for="slip">แนบสลิปโอนเงิน</label><input id="slip" class="in" type="file" accept="image/*" data-bind="slip"><p class="hint">' + (S.co.slip ? 'แนบแล้ว: ' + esc(S.co.slip) : 'ยังไม่ได้แนบสลิป') + '</p></div>' : '';
+  return '<fieldset class="grp"><legend>วิธีชำระเงิน</legend>' + cash + tr + '</fieldset>' + box;
+}
+function checkout(s) {
+  var ls = lines(s), sub = subtotal(s), ms = methods(s), m = effMethod(s), fee = feeFor(s, sub, m), pt = effPoint(), D = deliv(s, S.co.zone), nr = nextRound(s);
+  var info = {
+    delivery: ['ร้านส่งถึงที่', D.ok ? termsText(s) + ' · ออกรอบ ' + hm(nr.t) + ' ถึงประมาณ ' + hm(nr.t + D.one * 60000) : D.why],
+    shop: ['รับเองที่ร้าน', 'ไม่มีค่าส่ง'],
+    point: ['รับที่จุดรับอาหาร', 'ร้านนำอาหารไปส่งที่จุดรับ ไม่มีค่าส่ง ยืนยันด้วยรหัสรับอาหาร']
+  };
+  var zoneSel = ms.indexOf('delivery') >= 0 ? '<div class="field"><label class="lbl" for="zone">ส่งไปโซนไหน</label><select id="zone" class="in" data-bind="zone">' + ZN.map(function (z) { return '<option value="' + z[0] + '"' + (S.co.zone === z[0] ? ' selected' : '') + '>' + z[1] + '</option>'; }).join('') + '</select><p class="hint">' + (D.ok ? 'ระยะประมาณ ' + D.d + ' ม. · ร้านใช้เวลาไปกลับราว ' + D.trip + ' นาที' : D.why) + '</p></div>' : '';
+  var opts = ms.map(function (k) {
+    var dz = k === 'delivery' && !D.ok;
+    return '<label class="opt' + (dz ? ' dis' : '') + '"><input type="radio" id="m-' + k + '" name="method" data-bind="method" value="' + k + '"' + (m === k ? ' checked' : '') + (dz ? ' disabled' : '') + '><span><b>' + info[k][0] + '</b><small>' + info[k][1] + '</small></span></label>';
+  }).join('');
+  var ask = (S.mode === 'flood' && s.flood === 'ask' && !S.confirmed[s.id]) ? '<p class="hint">ร้านนี้ยังไม่ยืนยันการส่งถึงที่ <button type="button" class="btn ghost sm" data-act="tab" data-v="chat">ถามร้านในแชท</button></p>' : '';
+  var extra = '';
+  if (m === 'delivery') {
+    extra = '<div class="field"><label class="lbl" for="addr">ชั้น / ห้อง / จุดสังเกต</label><input id="addr" class="in" data-bind="addr" value="' + esc(S.co.addr) + '" placeholder="เช่น ห้อง 305 ชั้น 3" autocomplete="off"></div>';
+  } else if (m === 'point') {
+    extra = '<fieldset class="grp"><legend>เลือกจุดรับอาหาร</legend>' + pickups.map(function (p) {
+      return '<label class="opt' + (p.open ? '' : ' dis') + '"><input type="radio" id="pt-' + p.id + '" name="point" data-bind="point" value="' + p.id + '"' + (pt === p.id ? ' checked' : '') + (p.open ? '' : ' disabled') + '><span><b>จุดรับอาหาร ' + p.id + (p.open ? '' : ' (ปิดชั่วคราว)') + '</b><small>' + p.note + '</small></span></label>';
+    }).join('') + '</fieldset>';
+  }
+  return '<fieldset class="grp"><legend>รายการที่สั่ง</legend><ul class="lines">' + ls.map(function (l) { return '<li><span>' + esc(l.name) + ' x' + l.qty + '</span><span>' + baht(l.qty * l.price) + '</span></li>'; }).join('') + '</ul></fieldset>' +
+    zoneSel + '<fieldset class="grp"><legend>วิธีรับอาหาร</legend>' + opts + '</fieldset>' + ask + extra + payBox() +
+    '<div class="sum"><div><span>ค่าอาหาร</span><span>' + baht(sub) + '</span></div><div><span>ค่าส่ง</span><span>' + feeText(fee) + '</span></div><div class="tot"><span>รวม</span><span>' + baht(sub + fee) + '</span></div></div>' +
+    '<button type="button" class="btn" data-act="place">ยืนยันสั่งอาหาร</button><p class="hint">ตัวอย่างเพื่อสาธิต ยังไม่มีการตัดเงินหรือตรวจสลิปจริง</p>';
+}
+function cartbar(s) {
+  var n = count(s);
+  if (!n || S.tab === 'checkout') return '';
+  var sub = subtotal(s), hint, pct = 0;
+  if (s.fee === 0) { hint = 'ร้านนี้ส่งฟรีทุกออเดอร์'; pct = 100; }
+  else if (s.free > 0) { pct = Math.min(100, Math.round(sub / s.free * 100)); hint = sub >= s.free ? 'ได้ส่งฟรีแล้ว' : 'อีก ' + baht(s.free - sub) + ' ส่งฟรี'; }
+  else { hint = 'ค่าส่ง ' + baht(s.fee); }
+  return '<div class="cartbar"><div class="cb-top"><span><b>ตะกร้า ' + n + ' รายการ</b> · ' + baht(sub) + '</span><button type="button" class="btn sm" data-act="tab" data-v="checkout">ไปชำระเงิน</button></div>' +
+    (s.free > 0 ? '<div class="track" aria-hidden="true"><i style="width:' + pct + '%"></i></div>' : '') + '<span class="cb-hint">' + hint + '</span></div>';
+}
+function detail(s) {
+  var st = shopStatus(s);
+  var tabs = [['menu', 'เมนู'], ['chat', 'แชทกับร้าน']];
+  if (S.tab === 'checkout') tabs.push(['checkout', 'ชำระเงิน']);
+  var body = S.tab === 'chat' ? chatTab(s) : (S.tab === 'checkout' ? checkout(s) : menuTab(s));
+  return '<div class="card">' + cover(s) + '<div class="dh"><button type="button" class="back" data-act="back">← ร้านทั้งหมด</button><div class="dtitle"><h1>' + esc(s.name) + '</h1><span class="chip ' + st.cls + '">' + st.text + '</span></div>' +
+    '<p class="terms">' + esc(s.cat) + ' · ' + s.dist + ' ม. จากประตู · ร้านส่งเอง (' + TRN[s.tr][0] + ') · ' + termsText(s) + '</p></div>' +
+    '<div class="tabs" role="group" aria-label="เมนูของร้าน">' + tabs.map(function (t) { return '<button type="button" data-act="tab" data-v="' + t[0] + '" aria-current="' + (S.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</div>' +
+    '<div class="body">' + body + '</div>' + cartbar(s) + '</div>';
+}
+
+/* ---------- มุมมองร้านค้า ---------- */
+function opt(v, l, cur) { return '<option value="' + v + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + l + '</option>'; }
+function deliveryCard(s) {
+  var rph = 60 / s.rnd, trip = tripMin(s, s.range), pct = Math.min(100, Math.round(rph * trip / 60 * 100)), away = s.away > Date.now() && s.staff < 2;
+  var msg, cls = 'hint';
+  if (s.range > TRN[s.tr][1]) { msg = 'ระยะนี้เกินที่แนะนำสำหรับ' + TRN[s.tr][0] + ' (ไม่เกิน ' + TRN[s.tr][1] + ' ม.)'; cls = 'notice'; }
+  else if (s.staff >= 2) msg = 'มีคนเฝ้าร้านตอนอีกคนไปส่ง ร้านไม่ต้องปิดชั่วคราว';
+  else if (pct > 50) { msg = 'ถ้ารอบเต็มและส่งไกลสุด ร้านจะไม่อยู่หน้าร้านราว ' + pct + '% ของเวลา ลองลดระยะ ลดจำนวนที่ต่อรอบ หรือเว้นรอบให้ห่างขึ้น'; cls = 'notice'; }
+  else msg = 'กรณีเต็มทุกรอบและส่งไกลสุด ร้านออกไปส่งราว ' + pct + '% ของเวลา ยังดูแลหน้าร้านได้';
+  var groups = {};
+  S.orders.filter(function (o) { return o.shopId === s.id && o.method === 'delivery' && o.status < 3 && o.rk; }).forEach(function (o) { (groups[o.rk] = groups[o.rk] || []).push(o); });
+  var rounds = Object.keys(groups).sort().map(function (k) {
+    var g = groups[k].sort(function (a, b) { return a.dist - b.dist; }), far = g[g.length - 1].dist, t = tripMin(s, far) + (g.length - 1) * 2;
+    return '<article class="ord"><div class="ord-h"><span>รอบออก ' + hm(Number(k)) + ' · ' + g.length + '/' + s.cap + ' ออเดอร์</span><span>ใช้เวลา ~' + t + ' นาที</span></div>' +
+      g.map(function (o, i) { return '<p>' + (i + 1) + '. #' + o.id + ' → ' + esc(o.addr) + ' · ~' + o.dist + ' ม.</p>'; }).join('') + '</article>';
+  }).join('') || '<p class="empty">ยังไม่มีออเดอร์ส่งที่รอรอบ</p>';
+  var go = s.staff >= 2 ? '' : (away ? '<button type="button" class="btn sm" data-act="vback">กลับถึงร้านแล้ว</button>' : '<button type="button" class="btn sm" data-act="vgo">ออกไปส่งตอนนี้ (ร้านจะขึ้นสถานะออกส่ง)</button>');
+  return '<section class="card"><h2>การส่งของร้าน</h2><div class="two"><div class="field"><label class="lbl" for="vtr">ส่งด้วย</label><select id="vtr" class="in" data-bind="vtr">' + opt('walk', 'เดิน', s.tr) + opt('bike', 'มอเตอร์ไซค์', s.tr) + opt('car', 'รถยนต์', s.tr) + '</select></div>' +
+    '<div class="field"><label class="lbl" for="vstaff">คนในร้าน</label><select id="vstaff" class="in" data-bind="vstaff">' + opt(1, '1 คน (ต้องปิดร้านตอนไปส่ง)', s.staff) + opt(2, '2 คนขึ้นไป (มีคนเฝ้าร้าน)', s.staff) + '</select></div></div>' +
+    '<div class="two"><div class="field"><label class="lbl" for="vrange">ระยะส่งสูงสุด (เมตร)</label><input id="vrange" class="in" type="number" min="0" inputmode="numeric" value="' + s.range + '" data-bind="vrange"></div>' +
+    '<div class="field"><label class="lbl" for="vrnd">ออกส่งทุก</label><select id="vrnd" class="in" data-bind="vrnd">' + [10, 15, 20, 30, 45, 60].map(function (n) { return opt(n, n + ' นาที', s.rnd); }).join('') + '</select></div></div>' +
+    '<div class="field"><label class="lbl" for="vcap">รับได้สูงสุดต่อรอบ (ออเดอร์)</label><input id="vcap" class="in" type="number" min="1" inputmode="numeric" value="' + s.cap + '" data-bind="vcap"></div>' +
+    '<p class="' + cls + '">ส่งไกลสุด ' + s.range + ' ม. ใช้เวลาไปกลับประมาณ ' + trip + ' นาที · ' + msg + '</p>' + go + (away ? '<p class="hint">ตอนนี้ลูกค้าเห็นว่าร้านออกส่ง กลับประมาณ ' + hm(s.away) + '</p>' : '') +
+    '<h2 style="margin-top:16px">รอบส่งที่รออยู่ (เรียงจากใกล้ไปไกล)</h2><div class="orders">' + rounds + '</div></section>';
+}
+function vendorShop() {
+  var s = shop(S.vs);
+  var os = S.orders.filter(function (o) { return o.shopId === S.vs; });
+  var sel = function (v) { return s.flood === v ? ' selected' : ''; };
+  var kinds = [['rice', 'จานข้าวราดแกง'], ['egg', 'กะเพรา ไข่ดาว'], ['noodle', 'ก๋วยเตี๋ยว'], ['salad', 'ส้มตำ สลัด'], ['grill', 'ย่าง ทอด'], ['cup:#e08a3c', 'เครื่องดื่ม'], ['soup', 'ต้ม ซุป'], ['fried', 'ข้าวผัด'], ['bowl', 'ข้าวสวย ข้าวเหนียว']];
+  var orders = os.length ? '<div class="orders">' + os.map(function (o) {
+    var lb = stepLabels(o.method);
+    return '<article class="ord"><div class="ord-h"><span>#' + o.id + ' · ' + esc(o.mine ? 'ผู้สั่ง (คุณ)' : o.cust) + '</span><span>' + baht(o.total) + '</span></div><p>' +
+      o.items.map(function (i) { return esc(i.name) + ' x' + i.qty; }).join(', ') + '</p><p>' + orderWhere(o) + (o.code ? ' · รหัส <span class="code">' + o.code + '</span>' : '') + '</p><p>' + payText(o) + (o.pay === 'transfer' && o.slip ? ' · สลิป: ' + esc(o.slip) : '') + '</p>' + tracker(o) +
+      (o.status < 3 ? '<button type="button" class="btn sm" data-act="vadvance" data-id="' + o.id + '">ขั้นถัดไป: ' + lb[o.status + 1] + '</button>' : '') + (o.pay === 'transfer' && !o.paid ? '<button type="button" class="btn ghost sm" data-act="vpaid" data-id="' + o.id + '">ยืนยันยอดโอนแล้ว</button>' : '') + '</article>';
+  }).join('') + '</div>' : '<p class="empty">ยังไม่มีออเดอร์ ลองสลับไปมุมมองผู้สั่งแล้วสั่งจากร้านนี้</p>';
+  var preview = S.nimg ? '<p class="hint"><img class="thumb sm" src="' + S.nimg + '" alt="" width="44" height="44"><span>' + esc(S.nimgName) + '</span><button type="button" class="btn ghost sm" data-act="nclear">ลบรูป</button></p>' : '<p class="hint">ถ้าไม่อัปโหลด ระบบจะใช้ภาพประกอบตามรูปแบบที่เลือก</p>';
+  return '<main><div class="field"><label class="lbl" for="vs">ร้านที่จัดการ (สาธิต)</label><select id="vs" class="in" data-bind="vs">' + shops.map(function (x) { return opt(x.id, esc(x.name) + (x.sus ? ' (ถูกระงับ)' : ''), S.vs); }).join('') + '</select></div>' + (s.sus ? '<p class="notice">ร้านนี้ถูกแอดมินระงับ ลูกค้าไม่เห็นร้านจนกว่าจะเปิดใช้งานอีกครั้ง</p>' : '') + (!s.menu.length ? '<p class="notice">ร้านยังไม่มีเมนู เพิ่มเมนูแล้วเปิดร้าน ลูกค้าจึงจะเห็นร้านนี้</p>' : '') + '<p class="vnote">มุมมองร้านค้า (ตัวอย่าง): ' + esc(s.name) + ' · สิ่งที่ตั้งตรงนี้จะเปลี่ยนสิ่งที่ผู้สั่งเห็นทันที</p><div class="vgrid">' +
+    '<section class="card"><h2>สถานะร้าน</h2>' +
+    '<div class="field"><span class="lbl">การเปิดร้าน</span><div class="seg" role="group" aria-label="การเปิดร้าน"><button type="button" data-act="vopen" data-v="1" aria-pressed="' + s.open + '">เปิดรับออเดอร์</button><button type="button" data-act="vopen" data-v="0" aria-pressed="' + (!s.open) + '">ปิดร้าน</button></div></div>' +
+    '<div class="field"><label class="lbl" for="vflood">เมื่อน้ำท่วม</label><select id="vflood" class="in" data-bind="vflood"><option value="yes"' + sel('yes') + '>ส่งถึงที่ได้</option><option value="ask"' + sel('ask') + '>ต้องถามร้านก่อน</option><option value="no"' + sel('no') + '>ส่งถึงที่ไม่ได้ (ส่งไปจุดรับอาหาร)</option></select></div>' +
+    '<div class="two"><div class="field"><label class="lbl" for="vfee">ค่าส่ง (บาท)</label><input id="vfee" class="in" type="number" min="0" inputmode="numeric" value="' + s.fee + '" data-bind="vfee"></div>' +
+    '<div class="field"><label class="lbl" for="vfree">ส่งฟรีเมื่อครบ (0 = ไม่มี)</label><input id="vfree" class="in" type="number" min="0" inputmode="numeric" value="' + s.free + '" data-bind="vfree"></div></div></section>' +
+    deliveryCard(s) + '<section class="card"><h2>ออเดอร์เข้า</h2>' + orders + '</section>' +
+    '<section class="card"><h2>เมนูของร้าน</h2><ul class="vmenu">' + s.menu.map(function (m) { return '<li>' + tile(m.kind, s.hue, m.img, 44, 'thumb sm') + '<span>' + esc(m.name) + ' · ' + baht(m.price) + '</span><button type="button" class="btn ghost sm" data-act="vdel" data-id="' + m.id + '" aria-label="ลบ ' + esc(m.name) + '">ลบ</button></li>'; }).join('') + '</ul>' +
+    '<form class="vform" data-form="vadd"><div class="addrow"><input id="nname" class="in" data-bind="nname" value="' + esc(S.nname) + '" placeholder="ชื่อเมนู" aria-label="ชื่อเมนู" autocomplete="off"><input id="nprice" class="in" type="number" min="1" inputmode="numeric" data-bind="nprice" value="' + esc(S.nprice) + '" placeholder="ราคา" aria-label="ราคา"></div>' +
+    '<div class="field"><label class="lbl" for="nkind">ภาพประกอบ</label><select id="nkind" class="in" data-bind="nkind">' + kinds.map(function (k) { return '<option value="' + k[0] + '"' + (S.nkind === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="field"><label class="lbl" for="nimg">หรืออัปโหลดรูปอาหารจริง (ไม่บังคับ)</label><input id="nimg" class="in" type="file" accept="image/*" data-bind="nimg">' + preview + '</div>' +
+    '<button class="btn" type="submit">เพิ่มเมนู</button></form></section>' +
+    '<section class="card"><h2>แชทกับลูกค้า</h2><div class="body" style="padding:0"><div class="thread" role="log" aria-label="ข้อความ">' + bubbles(S.vs, 'shop') + '</div>' +
+    '<form class="send" data-form="vchat"><input id="vchat-in" class="in" data-bind="vdraft" value="' + esc(S.vdraft) + '" placeholder="ตอบลูกค้า เช่น ตอนนี้ส่งได้ค่ะ" aria-label="ตอบลูกค้า" autocomplete="off"><button class="btn" type="submit">ส่ง</button></form></div></section>' +
+    '</div></main>';
+}
+
+
+/* ---------- สมัครร้าน (ร้านค้า) และเมนูแอดมิน ---------- */
+var REASONS = ['ข้อมูลไม่ครบ', 'เบอร์โทรไม่ถูกต้อง', 'ชื่อร้านซ้ำกับร้านที่มีอยู่แล้ว', 'อยู่นอกพื้นที่ให้บริการ'];
+function stChip(a) {
+  if (a.status === 'approved') return '<span class="chip ok">อนุมัติแล้ว</span>';
+  if (a.status === 'rejected') return '<span class="chip bad">ไม่ผ่าน: ' + esc(a.reason || '') + '</span>';
+  return '<span class="chip warn">รอแอดมินตรวจ</span>';
+}
+function appChecks(a) {
+  var c = [];
+  c.push(/^0\d{8,9}$/.test(a.phone) ? ['ok', 'เบอร์โทรถูกต้อง'] : ['bad', 'เบอร์โทรไม่ถูกต้อง']);
+  c.push(shops.some(function (x) { return x.name.trim() === a.name.trim(); }) ? ['bad', 'ชื่อร้านซ้ำกับร้านที่มีอยู่'] : ['ok', 'ชื่อร้านไม่ซ้ำ']);
+  c.push(a.dist > TRN[a.tr][1] ? ['warn', 'อยู่ห่างประตู ' + a.dist + ' ม. เกินระยะส่งของ' + TRN[a.tr][0] + ' ลูกค้าจะรับเองที่ร้านเท่านั้น'] : ['ok', 'ส่งถึงประตูมหาวิทยาลัยได้ (' + a.dist + ' ม.)']);
+  return c;
+}
+function appCard(a, admin) {
+  var cs = appChecks(a), bad = cs.some(function (x) { return x[0] === 'bad'; });
+  var head = '<div class="ord-h"><span>' + esc(a.name) + ' · ' + esc(a.cat || '-') + '</span>' + (admin ? '' : stChip(a)) + '</div>';
+  var info = '<p>เจ้าของ: ' + esc(a.owner) + ' · โทร ' + esc(a.phone) + '</p><p>ห่างประตู ' + a.dist + ' ม. · ส่งด้วย' + TRN[a.tr][0] + ' · ' + (a.staff >= 2 ? 'มีคนเฝ้าร้าน' : 'ร้านมีคนเดียว') + '</p>' + (a.note ? '<p>' + esc(a.note) + '</p>' : '');
+  if (!admin) return '<article class="ord">' + head + info + '</article>';
+  return '<article class="ord">' + head + info + '<p>' + cs.map(function (x) { return '<span class="chip ' + x[0] + '">' + x[1] + '</span>'; }).join(' ') + '</p>' +
+    '<div class="two"><div class="field"><label class="lbl" for="rj-' + a.id + '">เหตุผลถ้าไม่ผ่าน</label><select id="rj-' + a.id + '" class="in">' + REASONS.map(function (r) { return '<option>' + r + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="pact"><button type="button" class="btn sm" data-act="aok" data-id="' + a.id + '"' + (bad ? ' disabled' : '') + '>อนุมัติ สร้างร้าน</button><button type="button" class="btn ghost sm" data-act="ano" data-id="' + a.id + '">ไม่ผ่าน</button></div>' + (bad ? '<p class="hint">มีรายการที่ไม่ผ่าน ต้องปฏิเสธหรือรอให้ร้านแก้ไข</p>' : '') + '</article>';
+}
+function applyView() {
+  var f = S.ap, mine = S.apps.filter(function (a) { return a.mine; });
+  var inp = function (id, k, label, ph, type) { return '<div class="field"><label class="lbl" for="' + id + '">' + label + '</label><input id="' + id + '" class="in"' + (type ? ' type="' + type + '" min="0" inputmode="numeric"' : '') + ' data-bind="ap:' + k + '" value="' + esc(f[k]) + '" placeholder="' + ph + '" autocomplete="off"></div>'; };
+  return '<main><div class="vgrid"><section class="card"><h2>สมัครเปิดร้านในแอป</h2><p class="hint">แอดมินจะตรวจข้อมูลก่อน ร้านจะขึ้นให้ลูกค้าเห็นหลังได้รับอนุมัติและมีเมนูแล้ว</p>' +
+    '<form class="vform" data-form="apply">' + inp('ap-name', 'name', 'ชื่อร้าน', 'เช่น ข้าวมันไก่ ป้าสม') + inp('ap-cat', 'cat', 'ประเภทอาหาร', 'เช่น ข้าวแกง ก๋วยเตี๋ยว') + inp('ap-owner', 'owner', 'ชื่อเจ้าของร้าน', 'ชื่อ-นามสกุล') + inp('ap-phone', 'phone', 'เบอร์โทร', '08xxxxxxxx') + inp('ap-dist', 'dist', 'ร้านอยู่ห่างประตูมหาวิทยาลัย (เมตร)', 'เช่น 300', 'number') +
+    '<div class="two"><div class="field"><label class="lbl" for="ap-tr">ส่งด้วย</label><select id="ap-tr" class="in" data-bind="ap:tr">' + opt('walk', 'เดิน', f.tr) + opt('bike', 'มอเตอร์ไซค์', f.tr) + opt('car', 'รถยนต์', f.tr) + '</select></div>' +
+    '<div class="field"><label class="lbl" for="ap-staff">คนในร้าน</label><select id="ap-staff" class="in" data-bind="ap:staff">' + opt(1, '1 คน', f.staff) + opt(2, '2 คนขึ้นไป', f.staff) + '</select></div></div>' +
+    '<div class="field"><label class="lbl" for="ap-note">หมายเหตุ (ไม่บังคับ)</label><input id="ap-note" class="in" data-bind="ap:note" value="' + esc(f.note) + '" placeholder="เช่น เวลาขาย" autocomplete="off"></div><button class="btn" type="submit">ส่งใบสมัคร</button></form></section>' +
+    '<section class="card"><h2>ใบสมัครของฉัน</h2>' + (mine.length ? '<div class="orders">' + mine.map(function (a) { return appCard(a, false); }).join('') + '</div>' : '<p class="empty">ยังไม่มีใบสมัคร</p>') + '</section></div></main>';
+}
+function vendor() {
+  return '<div class="vtabs">' + seg('vtab', [['shop', 'ร้านของฉัน'], ['apply', 'สมัครเปิดร้านใหม่']], S.vtab, 'เมนูร้านค้า') + '</div>' + (S.vtab === 'apply' ? applyView() : vendorShop());
+}
+function admin() {
+  var pend = S.apps.filter(function (a) { return a.status === 'pending'; }), done = S.apps.filter(function (a) { return a.status !== 'pending'; });
+  var kpi = function (n, l) { return '<div class="kpi"><b>' + n + '</b><span>' + l + '</span></div>'; };
+  return '<main><p class="vnote">เมนูแอดมิน (ตัวอย่าง): ตรวจใบสมัคร อนุมัติ และดูแลร้านในแอป</p><div class="kpis">' + kpi(pend.length, 'รอตรวจ') + kpi(shops.filter(function (x) { return !x.sus; }).length, 'ร้านที่ใช้งาน') + kpi(shops.filter(function (x) { return x.sus; }).length, 'ร้านที่ถูกระงับ') + kpi(S.apps.filter(function (a) { return a.status === 'rejected'; }).length, 'ไม่ผ่าน') + '</div>' +
+    '<div class="vgrid"><section class="card"><h2>ใบสมัครรอตรวจ (' + pend.length + ')</h2>' + (pend.length ? '<div class="orders">' + pend.map(function (a) { return appCard(a, true); }).join('') + '</div>' : '<p class="empty">ไม่มีใบสมัครที่รอตรวจ</p>') + '</section>' +
+    '<section class="card"><h2>ร้านในแอป</h2><ul class="vmenu">' + shops.map(function (x) {
+      return '<li><span><b>' + esc(x.name) + '</b> · ' + x.menu.length + ' เมนู ' + (x.sus ? '<span class="chip bad">ถูกระงับ</span>' : (x.menu.length ? '<span class="chip ok">ใช้งาน</span>' : '<span class="chip warn">ยังไม่มีเมนู</span>')) + '</span><button type="button" class="btn ghost sm" data-act="asus" data-id="' + x.id + '">' + (x.sus ? 'เปิดใช้งาน' : 'ระงับร้าน') + '</button></li>';
+    }).join('') + '</ul></section>' +
+    '<section class="card"><h2>ประวัติการตรวจ</h2>' + (done.length ? '<div class="orders">' + done.map(function (a) { return appCard(a, false); }).join('') + '</div>' : '<p class="empty">ยังไม่มี</p>') + '</section></div></main>';
+}
+function submitApply() {
+  var f = S.ap, d = parseInt(f.dist, 10);
+  if (!f.name.trim() || !f.owner.trim()) { toast('กรอกชื่อร้านและชื่อเจ้าของร้านก่อน'); return; }
+  if (!f.phone.trim()) { toast('กรอกเบอร์โทรก่อน'); return; }
+  if (!(d >= 0) || f.dist === '') { toast('กรอกระยะห่างจากประตูก่อน'); return; }
+  S.apps.unshift({ id: S.apps.length + 1, name: f.name.trim(), cat: f.cat.trim(), owner: f.owner.trim(), phone: f.phone.trim(), dist: d, tr: f.tr, staff: parseInt(f.staff, 10) || 1, note: f.note.trim(), status: 'pending', mine: true });
+  S.ap = { name: '', cat: '', owner: '', phone: '', dist: '', tr: 'walk', staff: '1', note: '' };
+  toast('ส่งใบสมัครแล้ว รอแอดมินตรวจ (สลับไปมุมมองแอดมินเพื่อลองอนุมัติ)');
+}
+function approveApp(a) {
+  var sid = 'n' + a.id + '_' + shops.length;
+  shops.push({ id: sid, name: a.name, av: a.name.charAt(0), hue: (a.id * 67) % 360, cat: a.cat || 'อาหาร', dist: a.dist, fee: 10, free: 0, open: false, flood: 'ask', blurb: 'ร้านใหม่', menu: [], tr: a.tr, staff: a.staff, range: TRN[a.tr][1], rnd: a.staff >= 2 ? 15 : 30, cap: a.staff >= 2 ? 5 : 3, away: 0, sus: false });
+  a.status = 'approved'; a.shopId = sid;
+  toast('อนุมัติแล้ว สร้างร้าน ' + a.name + ' ให้ ร้านต้องเพิ่มเมนูก่อนลูกค้าจะเห็น');
+}
+
+function render() {
+  var ae = document.activeElement;
+  var fid = ae && ae.id && $app.contains(ae) ? ae.id : null;
+  var selr = null;
+  try { if (fid && ae.selectionStart != null) selr = [ae.selectionStart, ae.selectionEnd]; } catch (e) { selr = null; }
+  $app.dataset.mode = S.mode;
+  $app.innerHTML = header() + (S.role === 'customer' ? banner() : '') + (S.role === 'customer' ? customer() : (S.role === 'vendor' ? vendor() : admin())) + '<p class="foot">ต้นแบบเพื่อสาธิตแนวคิด ข้อมูลร้าน เมนู ราคา และสถานะจุดรับอาหารเป็นตัวอย่าง ไม่ใช่ข้อมูลจริง</p>';
+  if (fid) {
+    var n = document.getElementById(fid);
+    if (n) { n.focus(); if (selr && n.setSelectionRange) { try { n.setSelectionRange(selr[0], selr[1]); } catch (e) {} } }
+  }
+  var ths = $app.querySelectorAll('.thread');
+  for (var i = 0; i < ths.length; i++) ths[i].scrollTop = ths[i].scrollHeight;
+}
+
+/* ---------- พฤติกรรม ---------- */
+function botReply(s, text) {
+  var flood = S.mode === 'flood';
+  var reply, follow = null;
+  if (!s.open) reply = 'ตอนนี้ร้านปิดอยู่ค่ะ เปิดอีกครั้ง 16:00 ทักไว้ได้เลยนะคะ';
+  else if (/จุดรับ/.test(text)) reply = 'ส่งไปที่จุดรับอาหารให้ได้ค่ะ เลือกจุดรับตอนชำระเงินได้เลย แล้วรับด้วยรหัสที่ระบบให้';
+  else if (/ท่วม|ส่ง|หอ|อาคาร/.test(text)) {
+    if (flood) {
+      if (canDeliverFlood(s)) reply = 'ส่งได้ค่ะ ถนนหน้าหอยังผ่านได้ ส่งถึงหน้าอาคารนะคะ';
+      else if (s.flood === 'no') reply = 'ขอโทษนะคะ ตอนนี้น้ำท่วมส่งถึงที่ไม่ได้ แต่ร้านนำไปส่งที่จุดรับอาหารให้ได้ค่ะ';
+      else { reply = 'ขอเช็กเส้นทางก่อนนะคะ รอสักครู่'; follow = 'เช็กแล้วค่ะ ส่งถึงที่ได้ สั่งได้เลยนะคะ'; }
+    } else reply = 'ส่งได้ค่ะ ' + termsText(s) + ' ร้านออกส่งเป็นรอบ รอบถัดไป ' + hm(nextRound(s).t);
+  } else if (/เมนู|แนะนำ|อะไร/.test(text)) reply = 'วันนี้แนะนำ' + (s.menu[0] || { name: 'เมนูของร้าน' }).name + 'ค่ะ';
+  else reply = 'รับทราบค่ะ ใส่หมายเหตุไว้ให้แล้ว';
+  setTimeout(function () {
+    thread(s.id).push({ who: 'shop', text: reply }); render();
+    if (follow) {
+      setTimeout(function () { thread(s.id).push({ who: 'shop', text: follow }); S.confirmed[s.id] = true; render(); }, 2200);
+    }
+  }, 800);
+}
+function sendChat(who) {
+  var key = who === 'cust' ? 'draft' : 'vdraft';
+  var text = S[key].trim();
+  if (!text) return;
+  var s = who === 'cust' ? shop(S.shopId) : shop(S.vs);
+  thread(s.id).push({ who: who, text: text });
+  S[key] = '';
+  render();
+  if (who === 'cust') botReply(s, text);
+}
+function addItem() {
+  var name = S.nname.trim(), price = parseInt(S.nprice, 10);
+  if (!name || !(price > 0)) { toast('กรอกชื่อเมนูและราคาก่อน'); return; }
+  shop(S.vs).menu.push({ id: S.vs + 'm' + (uid++), name: name, price: price, kind: S.nkind, img: S.nimg });
+  S.nname = ''; S.nprice = ''; S.nimg = ''; S.nimgName = '';
+  toast('เพิ่มเมนูแล้ว ผู้สั่งเห็นทันที');
+  render();
+}
+function autoAdvance(o) {
+  var t = setInterval(function () {
+    if (o.status >= 3) { clearInterval(t); return; }
+    o.status++;
+    toast('ออเดอร์ #' + o.id + ' ' + stepLabels(o.method)[o.status]);
+    render();
+  }, 7000);
+}
+function placeOrder() {
+  var s = shop(S.shopId), ls = lines(s), sub = subtotal(s);
+  if (!ls.length) { toast('เลือกเมนูก่อนนะ'); return; }
+  if (!s.open) { toast('ร้านปิดอยู่'); return; }
+  if (closedAll()) { toast('ปิดรับออเดอร์ชั่วคราว ไม่มีจุดรับอาหารที่ปลอดภัย'); return; }
+  var m = effMethod(s), pt = effPoint();
+  if (m === 'delivery' && !S.co.addr.trim()) { toast('กรอกชั้น ห้อง หรือจุดสังเกตที่ให้ไปส่งก่อน'); return; }
+  var D = m === 'delivery' ? deliv(s, S.co.zone) : null;
+  if (D && !D.ok) { toast(D.why); return; }
+  var nr = D ? nextRound(s) : null;
+  if (S.co.pay === 'transfer' && !S.co.slip) { toast('แนบสลิปโอนเงินก่อน'); return; }
+  var fee = feeFor(s, sub, m);
+  var o = {
+    id: S.seq++, shopId: s.id, mine: true, cust: 'ผู้สั่ง',
+    items: ls.map(function (l) { return { name: l.name, qty: l.qty, price: l.price, kind: l.kind, img: l.img }; }),
+    sub: sub, fee: fee, total: sub + fee, method: m, addr: m === 'delivery' ? zname(S.co.zone) + ' · ' + S.co.addr.trim() : S.co.addr.trim(), dist: D ? D.d : 0, one: D ? D.one : 0, rk: nr ? nr.t : null,
+    point: m === 'point' ? pt : null, code: m === 'point' ? String(1000 + Math.floor(Math.random() * 9000)) : null,
+    pay: S.co.pay, slip: S.co.pay === 'transfer' ? S.co.slip : '', paid: false, status: 0
+  };
+  S.orders.unshift(o); S.co.slip = ''; autoAdvance(o);
+  S.cart[s.id] = {}; S.tab = 'menu'; S.view = 'list'; S.sec = 'orders'; S.openOrder = o.id;
+  toast('สั่งแล้ว ร้านได้รับออเดอร์ #' + o.id);
+  render();
+}
+
+$app.addEventListener('click', function (e) {
+  var b = e.target.closest('[data-act]');
+  if (!b || b.disabled) return;
+  var a = b.dataset.act, v = b.dataset.v, id = b.dataset.id;
+  if (a === 'role') { S.role = v; }
+  else if (a === 'mode') { S.mode = v; S.co.method = null; }
+  else if (a === 'filter') { S.filter = v; }
+  else if (a === 'open') { S.shopId = id; S.view = 'shop'; S.tab = 'menu'; S.co.method = null; }
+  else if (a === 'back') { S.view = 'list'; }
+  else if (a === 'tab') { S.tab = v; }
+  else if (a === 'inc' || a === 'dec') {
+    var c = S.cart[S.shopId] || (S.cart[S.shopId] = {});
+    c[id] = Math.max(0, (c[id] || 0) + (a === 'inc' ? 1 : -1));
+  }
+  else if (a === 'place') { placeOrder(); return; }
+  else if (a === 'quick') { S.draft = b.dataset.text; sendChat('cust'); return; }
+  else if (a === 'pick') { S.sel = id; }
+  else if (a === 'ptoggle') { var pp = pickups.filter(function (x) { return x.id === id; })[0]; pp.open = !pp.open; }
+  else if (a === 'usepoint') { S.co.point = id; S.co.method = 'point'; toast('เลือกจุดรับอาหาร ' + id + ' ไว้ให้ที่หน้าชำระเงินแล้ว'); }
+  else if (a === 'map') { S.showMap = !S.showMap; }
+  else if (a === 'sec') { S.sec = v; }
+  else if (a === 'oopen') { var oid = Number(id); S.openOrder = S.openOrder === oid ? null : oid; }
+  else if (a === 'viewshop') { S.sec = 'shops'; S.shopId = id; S.view = 'shop'; S.tab = 'menu'; S.co.method = null; }
+  else if (a === 'nclear') { S.nimg = ''; S.nimgName = ''; }
+  else if (a === 'vopen') { shop(S.vs).open = v === '1'; }
+  else if (a === 'vdel') { var s1 = shop(S.vs); s1.menu = s1.menu.filter(function (m) { return m.id !== id; }); }
+  else if (a === 'vpaid') { var o2 = S.orders.filter(function (x) { return String(x.id) === id; })[0]; if (o2) o2.paid = true; }
+  else if (a === 'vtab') { S.vtab = v; }
+  else if (a === 'aok') { var ap1 = S.apps.filter(function (x) { return String(x.id) === id; })[0]; if (ap1 && ap1.status === 'pending') approveApp(ap1); }
+  else if (a === 'ano') { var ap2 = S.apps.filter(function (x) { return String(x.id) === id; })[0]; var rj = document.getElementById('rj-' + id); if (ap2) { ap2.status = 'rejected'; ap2.reason = rj ? rj.value : REASONS[0]; toast('ปฏิเสธใบสมัครแล้ว'); } }
+  else if (a === 'asus') { var sx = shop(id); sx.sus = !sx.sus; if (sx.sus && S.shopId === id) { var f1 = shops.filter(passFilter)[0]; if (f1) S.shopId = f1.id; } toast(sx.sus ? 'ระงับร้านแล้ว ลูกค้าไม่เห็นร้านนี้' : 'เปิดใช้งานร้านแล้ว'); }
+  else if (a === 'vgo') {
+    var sv = shop(S.vs), ps = S.orders.filter(function (x) { return x.shopId === S.vs && x.method === 'delivery' && x.status < 3; });
+    if (!ps.length) { toast('ยังไม่มีออเดอร์ที่ต้องส่ง'); return; }
+    sv.away = Date.now() + (tripMin(sv, Math.max.apply(null, ps.map(function (x) { return x.dist; }))) + (ps.length - 1) * 2) * 60000;
+    toast('ออกส่งแล้ว ลูกค้าเห็นว่าร้านจะกลับ ' + hm(sv.away));
+  }
+  else if (a === 'vback') { shop(S.vs).away = 0; toast('กลับถึงร้านแล้ว'); }
+  else if (a === 'vadvance') { var o = S.orders.filter(function (x) { return String(x.id) === id; })[0]; if (o && o.status < 3) o.status++; }
+  render();
+});
+$app.addEventListener('submit', function (e) {
+  e.preventDefault();
+  var f = e.target.dataset.form;
+  if (f === 'chat') sendChat('cust');
+  else if (f === 'vchat') sendChat('shop');
+  else if (f === 'vadd') addItem();
+  else if (f === 'apply') submitApply();
+});
+function bind(e, isChange) {
+  var t = e.target, k = t.dataset && t.dataset.bind;
+  if (!k) return;
+  var choice = t.type === 'radio' || t.type === 'file' || t.tagName === 'SELECT';
+  if (choice !== isChange) return;
+  if (k.indexOf('ap:') === 0) { S.ap[k.slice(3)] = t.value; return; }
+  var s1 = shop(S.vs);
+  if (k === 'draft') S.draft = t.value;
+  else if (k === 'vdraft') S.vdraft = t.value;
+  else if (k === 'addr') S.co.addr = t.value;
+  else if (k === 'nname') S.nname = t.value;
+  else if (k === 'nprice') S.nprice = t.value;
+  else if (k === 'vfee') s1.fee = Math.max(0, parseInt(t.value, 10) || 0);
+  else if (k === 'vfree') s1.free = Math.max(0, parseInt(t.value, 10) || 0);
+  else if (k === 'vflood') { s1.flood = t.value; delete S.confirmed[S.vs]; }
+  else if (k === 'vs') { S.vs = t.value; render(); }
+  else if (k === 'zone') { S.co.zone = t.value; render(); }
+  else if (k === 'vtr') { s1.tr = t.value; s1.range = TRN[t.value][1]; render(); }
+  else if (k === 'vstaff') { s1.staff = parseInt(t.value, 10) || 1; render(); }
+  else if (k === 'vrange') { s1.range = Math.max(0, parseInt(t.value, 10) || 0); render(); }
+  else if (k === 'vrnd') { s1.rnd = parseInt(t.value, 10) || 15; render(); }
+  else if (k === 'vcap') { s1.cap = Math.max(1, parseInt(t.value, 10) || 1); render(); }
+  else if (k === 'method') { S.co.method = t.value; render(); }
+  else if (k === 'point') { S.co.point = t.value; render(); }
+  else if (k === 'nkind') { S.nkind = t.value; }
+  else if (k === 'nimg') {
+    var f = t.files && t.files[0];
+    if (!f) { S.nimg = ''; S.nimgName = ''; render(); }
+    else if (f.size > 3000000) { toast('รูปใหญ่เกิน 3 MB ลองรูปที่เล็กลง'); }
+    else { var fr = new FileReader(); fr.onload = function () { S.nimg = String(fr.result); S.nimgName = f.name; render(); }; fr.readAsDataURL(f); }
+  }
+  else if (k === 'pay') { S.co.pay = t.value; render(); }
+  else if (k === 'slip') { S.co.slip = t.files && t.files[0] ? t.files[0].name : ''; render(); }
+}
+$app.addEventListener('input', function (e) { bind(e, false); });
+$app.addEventListener('change', function (e) { bind(e, true); });
+
+$app.addEventListener('keydown', function (e) {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('g[data-act]')) {
+    e.preventDefault();
+    e.target.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  }
+});
+render();
+})();
+</script>
+
+</body></html>
